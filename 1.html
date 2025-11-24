@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Heatmap en A-Frame</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- A-Frame -->
+    <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+
+    <script>
+      AFRAME.registerComponent('heatmap', {
+        schema: {
+          delay: { type: 'number', default: 5 },          // segundos antes de activar
+          pointsPerSecond: { type: 'number', default: 5 } // cuántos “puntos calientes” por segundo
+        },
+
+        init: function () {
+          this.elapsed = 0;
+          this.started = false;
+          this.accumulator = 0;
+
+          // Canvas para el heatmap
+          const size = 512;
+          const canvas = this.canvas = document.createElement('canvas');
+          canvas.width = canvas.height = size;
+          this.ctx = canvas.getContext('2d');
+
+          // Fondo oscuro para que se note el calor
+          this.ctx.fillStyle = 'black';
+          this.ctx.fillRect(0, 0, size, size);
+
+          // Crear textura de Three.js a partir del canvas
+          this.texture = new THREE.CanvasTexture(canvas);
+          this.texture.needsUpdate = true;
+
+          // Cuando el modelo termine de cargar, aplicamos la textura
+          this.onModelLoaded = this.onModelLoaded.bind(this);
+          this.el.addEventListener('model-loaded', this.onModelLoaded);
+        },
+
+        onModelLoaded: function () {
+          const mesh = this.el.getObject3D('mesh');
+          if (!mesh) return;
+
+          mesh.traverse(node => {
+            if (node.isMesh) {
+              // Guardar mapa original por si luego quieres revertirlo
+              node.userData.originalMap = node.material.map;
+              node.material.map = this.texture;
+              node.material.needsUpdate = true;
+            }
+          });
+        },
+
+        tick: function (time, delta) {
+          const dt = delta / 1000;
+          this.elapsed += dt;
+
+          // Esperar hasta que pase el delay
+          if (!this.started && this.elapsed >= this.data.delay) {
+            this.started = true;
+            this.accumulator = 0;
+          }
+
+          if (!this.started) return;
+
+          this.accumulator += dt;
+          const pps = this.data.pointsPerSecond;
+
+          // Dibujar varios puntos si pasó suficiente tiempo
+          while (this.accumulator > 1 / pps) {
+            this.accumulator -= 1 / pps;
+            this.addHeatPoint();
+          }
+
+          // Actualizar la textura
+          this.texture.needsUpdate = true;
+        },
+
+        addHeatPoint: function () {
+          const ctx = this.ctx;
+          const canvas = this.canvas;
+          const x = Math.random() * canvas.width;
+          const y = Math.random() * canvas.height;
+          const radius = 20 + Math.random() * 30;
+
+          const grd = ctx.createRadialGradient(x, y, 0, x, y, radius);
+          grd.addColorStop(0.0, 'rgba(255, 255, 255, 1)');
+          grd.addColorStop(0.3, 'rgba(255, 255, 0, 1)');
+          grd.addColorStop(0.6, 'rgba(255, 128, 0, 0.9)');
+          grd.addColorStop(1.0, 'rgba(255, 0, 0, 0)');
+
+          ctx.fillStyle = grd;
+          ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+        }
+      });
+    </script>
+  </head>
+
+  <body>
+    <a-scene background="color: #222">
+      <a-assets>
+        <!-- Tu modelo -->
+        <a-asset-item id="modelo" src="modelo.glb"></a-asset-item>
+      </a-assets>
+
+      <!-- Aplicamos el componente heatmap -->
+      <a-entity gltf-model="#modelo"
+                position="0 1.5 -2"
+                rotation="0 45 0"
+                heatmap="delay: 5; pointsPerSecond: 8">
+      </a-entity>
+
+      <a-entity camera look-controls wasd-controls position="0 1.6 0"></a-entity>
+    </a-scene>
+  </body>
+</html>
