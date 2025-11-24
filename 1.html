@@ -81,19 +81,26 @@
   </head>
 
   <body>
-    <a-scene background="color: #222">
+    <a-scene
+      renderer="colorManagement: true"
+      webxr="optionalFeatures: local-floor, bounded-floor, hand-tracking;"
+    >
       <a-assets>
-        <!-- tu modelo -->
-        <a-asset-item id="modelo" src="model2.glb"></a-asset-item>
+        <a-asset-item id="modelo" src="modelo.glb"></a-asset-item>
       </a-assets>
-
-      <!-- Cámara + cursor basado en mouse -->
-      <a-entity camera look-controls position="0 1.6 0">
-        <a-entity cursor="rayOrigin: mouse"
-                  raycaster="objects: .heatmap-target"></a-entity>
+    
+      <!-- Cámara "dummy" (Oculus la reemplaza al entrar a VR) -->
+      <a-entity id="rig" position="0 1.6 0">
+        <a-camera></a-camera>
+    
+        <!-- Control derecho con láser -->
+        <a-entity laser-controls="hand: right"
+                  raycaster="objects: .heatmap-target"
+                  line="opacity: 0.9">
+        </a-entity>
       </a-entity>
-
-      <!-- Modelo con el componente de heatmap real -->
+    
+      <!-- Modelo con el componente de heatmap de clics -->
       <a-entity gltf-model="#modelo"
                 class="heatmap-target"
                 position="0 1.5 -2"
@@ -101,5 +108,6 @@
                 click-heatmap="size: 512; pointRadius: 30">
       </a-entity>
     </a-scene>
+
   </body>
 </html>
