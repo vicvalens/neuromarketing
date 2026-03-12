@@ -11,19 +11,16 @@ let tracking = false;
 let rawData = [];
 let heatmap = null;
 
-function createOrResetHeatmap() {
-  const w = stimulus.clientWidth;
-  const h = stimulus.clientHeight;
-
+function createHeatmap() {
   heatmapContainer.innerHTML = "";
-  heatmapContainer.style.width = `${w}px`;
-  heatmapContainer.style.height = `${h}px`;
+  heatmapContainer.style.width = stimulus.clientWidth + "px";
+  heatmapContainer.style.height = stimulus.clientHeight + "px";
 
   heatmap = h337.create({
     container: heatmapContainer,
-    radius: 35,
+    radius: 40,
     maxOpacity: 0.75,
-    minOpacity: 0.08,
+    minOpacity: 0.1,
     blur: 0.9,
     gradient: {
       0.2: "blue",
@@ -35,6 +32,20 @@ function createOrResetHeatmap() {
   });
 
   heatmap.setData({ max: 1, data: [] });
+}
+
+function resizeHeatmap() {
+  if (!stimulus.clientWidth || !stimulus.clientHeight) return;
+  createHeatmap();
+}
+
+function getRelativePosition(event) {
+  const rect = stimulus.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+
+  if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+  return { x, y };
 }
 
 function aggregatePoints(data, gridSize = 20) {
@@ -55,24 +66,8 @@ function aggregatePoints(data, gridSize = 20) {
   return Object.values(map);
 }
 
-function getRelativePosition(event) {
-  const rect = stimulus.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-
-  if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
-  return { x, y };
-}
-
-stimulus.addEventListener("load", () => {
-  createOrResetHeatmap();
-});
-
-window.addEventListener("resize", () => {
-  if (stimulus.complete) {
-    createOrResetHeatmap();
-  }
-});
+stimulus.addEventListener("load", resizeHeatmap);
+window.addEventListener("resize", resizeHeatmap);
 
 wrapper.addEventListener("mousemove", (event) => {
   if (!tracking) return;
@@ -90,9 +85,13 @@ wrapper.addEventListener("mousemove", (event) => {
 startBtn.addEventListener("click", () => {
   tracking = true;
   rawData = [];
-  if (heatmap) {
+
+  if (!heatmap) {
+    createHeatmap();
+  } else {
     heatmap.setData({ max: 1, data: [] });
   }
+
   alert("Registro iniciado");
 });
 
@@ -102,15 +101,13 @@ showBtn.addEventListener("click", () => {
     return;
   }
 
-  const aggregated = aggregatePoints(rawData, 18);
+  const aggregated = aggregatePoints(rawData, 20);
   const maxValue = Math.max(...aggregated.map((p) => p.value));
 
-  if (!heatmap) {
-    createOrResetHeatmap();
-  }
+  if (!heatmap) createHeatmap();
 
   heatmap.setData({
-    max: maxValue,
+    max: maxValue || 1,
     data: aggregated
   });
 });
@@ -118,6 +115,7 @@ showBtn.addEventListener("click", () => {
 clearBtn.addEventListener("click", () => {
   tracking = false;
   rawData = [];
+
   if (heatmap) {
     heatmap.setData({ max: 1, data: [] });
   }
@@ -143,5 +141,5 @@ downloadBtn.addEventListener("click", () => {
 });
 
 if (stimulus.complete) {
-  createOrResetHeatmap();
+  resizeHeatmap();
 }
