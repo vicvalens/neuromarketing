@@ -1,7 +1,7 @@
-// Referencias a elementos
-const stage = document.getElementById("stage");
+const wrapper = document.getElementById("wrapper");
 const stimulus = document.getElementById("stimulus");
-const heatmapContainer = document.getElementById("heatmap");
+const canvas = document.getElementById("heatmapCanvas");
+const ctx = canvas.getContext("2d");
 
 const startBtn = document.getElementById("startBtn");
 const showBtn = document.getElementById("showBtn");
@@ -10,34 +10,19 @@ const downloadBtn = document.getElementById("downloadBtn");
 
 let tracking = false;
 let rawData = [];
-let heatmapInstance = null;
 
-// Configura y crea la instancia del mapa de calor
-function createHeatmap() {
-  if (typeof h337 === "undefined") {
-    console.error("heatmap.js no cargó");
-    return;
-  }
-
-  // Limpiar contenido previo
-  heatmapContainer.innerHTML = "";
-  
-  // Sincronizar tamaño del contenedor con la imagen real
+function resizeCanvas() {
   const w = stimulus.clientWidth;
   const h = stimulus.clientHeight;
-  heatmapContainer.style.width = w + "px";
-  heatmapContainer.style.height = h + "px";
 
-  heatmapInstance = h337.create({
-    container: heatmapContainer,
-    radius: 40,
-    maxOpacity: 0.7,
-    minOpacity: 0,
-    blur: 0.85
-  });
+  if (!w || !h) return;
+
+  canvas.width = w;
+  canvas.height = h;
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
 }
 
-// Obtener coordenadas relativas a la imagen
 function getRelativePosition(event) {
   const rect = stimulus.getBoundingClientRect();
   const x = event.clientX - rect.left;
@@ -47,21 +32,60 @@ function getRelativePosition(event) {
   return { x, y };
 }
 
-// Agrupar puntos cercanos para mejorar la visualización
-function aggregatePoints(data, gridSize = 10) {
+function aggregatePoints(data, gridSize = 20) {
   const map = {};
+
   data.forEach((p) => {
     const gx = Math.round(p.x / gridSize) * gridSize;
     const gy = Math.round(p.y / gridSize) * gridSize;
     const key = `${gx}_${gy}`;
-    if (!map[key]) map[key] = { x: gx, y: gy, value: 0 };
+
+    if (!map[key]) {
+      map[key] = { x: gx, y: gy, value: 0 };
+    }
+
     map[key].value += 1;
   });
+
   return Object.values(map);
 }
 
-// Eventos de ratón
-stage.addEventListener("mousemove", (event) => {
+function getHeatColor(value, max) {
+  const ratio = value / max;
+
+  if (ratio < 0.25) return "rgba(0, 0, 255, 0.28)";
+  if (ratio < 0.5) return "rgba(0, 255, 255, 0.30)";
+  if (ratio < 0.7) return "rgba(0, 255, 0, 0.32)";
+  if (ratio < 0.85) return "rgba(255, 255, 0, 0.34)";
+  return "rgba(255, 0, 0, 0.38)";
+}
+
+function drawHeatmap(points) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!points.length) return;
+
+  const maxValue = Math.max(...points.map(p => p.value), 1);
+
+  points.forEach((p) => {
+    const radius = 35;
+    const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, radius);
+
+    const color = getHeatColor(p.value, maxValue);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, "rgba(255,255,255,0)");
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+stimulus.addEventListener("load", resizeCanvas);
+window.addEventListener("resize", resizeCanvas);
+
+wrapper.addEventListener("mousemove", (event) => {
   if (!tracking) return;
 
   const pos = getRelativePosition(event);
@@ -74,53 +98,48 @@ stage.addEventListener("mousemove", (event) => {
   });
 });
 
-// Botones
 startBtn.addEventListener("click", () => {
   tracking = true;
   rawData = [];
-  if (heatmapInstance) heatmapInstance.setData({ max: 0, data: [] });
-  alert("Grabación iniciada. Mueve el mouse sobre la imagen.");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  alert("Registro iniciado");
 });
 
 showBtn.addEventListener("click", () => {
   if (!rawData.length) {
-    alert("No hay datos para mostrar.");
+    alert("No hay datos registrados.");
     return;
   }
-  
-  tracking = false; // Detener seguimiento al mostrar
-  createHeatmap(); // Asegurar que el tamaño sea correcto
 
-  const aggregated = aggregatePoints(rawData, 15);
-  const maxValue = Math.max(...aggregated.map((p) => p.value));
-
-  heatmapInstance.setData({
-    max: maxValue,
-    data: aggregated
-  });
+  const aggregated = aggregatePoints(rawData, 20);
+  drawHeatmap(aggregated);
 });
 
 clearBtn.addEventListener("click", () => {
   tracking = false;
   rawData = [];
-  if (heatmapInstance) heatmapInstance.setData({ max: 0, data: [] });
-  alert("Datos limpiados.");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 });
 
 downloadBtn.addEventListener("click", () => {
   const data = {
     image: stimulus.getAttribute("src"),
     timestamp: new Date().toISOString(),
-    points: rawData
+    raw_mouse_data: rawData
   };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json"
+  });
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "tracking_data.json";
+  a.download = "mouse_heatmap_data.json";
   a.click();
+  URL.revokeObjectURL(url);
 });
 
-// Inicialización cuando la imagen carga
-stimulus.onload = () => createHeatmap();
-window.onresize = () => createHeatmap();
+if (stimulus.complete) {
+  resizeCanvas();
+}
