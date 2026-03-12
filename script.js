@@ -25,14 +25,20 @@ function syncStageSize() {
 }
 
 function createHeatmap() {
-  syncStageSize();
+  if (typeof h337 === "undefined") {
+    console.error("heatmap.js no cargó");
+    return;
+  }
+
   heatmapContainer.innerHTML = "";
+  heatmapContainer.style.width = stimulus.clientWidth + "px";
+  heatmapContainer.style.height = stimulus.clientHeight + "px";
 
   heatmap = h337.create({
     container: heatmapContainer,
     radius: 40,
     maxOpacity: 0.75,
-    minOpacity: 0.08,
+    minOpacity: 0.1,
     blur: 0.9,
     gradient: {
       0.2: "blue",
@@ -99,13 +105,13 @@ startBtn.addEventListener("click", () => {
   tracking = true;
   rawData = [];
 
+  alert("Registro iniciado");
+
   if (!heatmap) {
     createHeatmap();
   } else {
     heatmap.setData({ max: 1, data: [] });
   }
-
-  alert("Registro iniciado");
 });
 
 showBtn.addEventListener("click", () => {
@@ -114,10 +120,16 @@ showBtn.addEventListener("click", () => {
     return;
   }
 
+  if (typeof h337 === "undefined") {
+    alert("La librería heatmap.js no cargó.");
+    return;
+  }
+
   const aggregated = aggregatePoints(rawData, 20);
   const maxValue = Math.max(...aggregated.map((p) => p.value), 1);
 
   if (!heatmap) createHeatmap();
+  if (!heatmap) return;
 
   heatmap.setData({
     max: maxValue,
