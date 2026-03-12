@@ -7,15 +7,24 @@ const showBtn = document.getElementById("showBtn");
 const clearBtn = document.getElementById("clearBtn");
 const downloadBtn = document.getElementById("downloadBtn");
 
+const aggregated = aggregatePoints(rawData, 20);
+
 let tracking = false;
 let rawData = [];
 
 const heatmap = h337.create({
   container: heatmapContainer,
   radius: 40,
-  maxOpacity: 0.7,
-  minOpacity: 0.05,
-  blur: 0.9
+  maxOpacity: 0.75,
+  minOpacity: 0.1,
+  blur: 0.9,
+  gradient: {
+    0.2: "blue",
+    0.4: "cyan",
+    0.6: "lime",
+    0.8: "yellow",
+    1.0: "red"
+  }
 });
 
 function resizeHeatmap() {
@@ -33,6 +42,24 @@ function getRelativePosition(event) {
 
   if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
   return { x, y };
+}
+
+function aggregatePoints(data, gridSize = 20) {
+  const map = {};
+
+  data.forEach(p => {
+    const gx = Math.round(p.x / gridSize) * gridSize;
+    const gy = Math.round(p.y / gridSize) * gridSize;
+    const key = `${gx}_${gy}`;
+
+    if (!map[key]) {
+      map[key] = { x: gx, y: gy, value: 0 };
+    }
+
+    map[key].value += 1;
+  });
+
+  return Object.values(map);
 }
 
 wrapper.addEventListener("mousemove", (event) => {
@@ -61,15 +88,11 @@ showBtn.addEventListener("click", () => {
     return;
   }
 
-  const dataToShow = rawData.map(p => ({
-    x: p.x,
-    y: p.y,
-    value: 1
-  }));
+  const aggregated = aggregatePoints(rawData, 20);
 
   heatmap.setData({
-    max: 3,
-    data: dataToShow
+    max: Math.max(...aggregated.map(p => p.value)),
+    data: aggregated
   });
 });
 
