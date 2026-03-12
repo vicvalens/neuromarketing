@@ -6,9 +6,14 @@ body {
 }
 
 #wrapper {
-  position: relative;
   display: inline-block;
   margin-top: 20px;
+}
+
+#stage {
+  position: relative;
+  display: inline-block;
+  width: fit-content;
   line-height: 0;
 }
 
@@ -21,18 +26,14 @@ body {
 
 #heatmap {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   pointer-events: none;
-  z-index: 20;
+  z-index: 10;
 }
 
-#heatmap canvas {
+#heatmap > canvas {
   position: absolute !important;
-  top: 0;
-  left: 0;
+  inset: 0 !important;
 }
 
 .controls {

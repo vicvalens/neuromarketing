@@ -1,4 +1,4 @@
-const wrapper = document.getElementById("wrapper");
+const stage = document.getElementById("stage");
 const stimulus = document.getElementById("stimulus");
 const heatmapContainer = document.getElementById("heatmap");
 
@@ -11,16 +11,28 @@ let tracking = false;
 let rawData = [];
 let heatmap = null;
 
+function syncStageSize() {
+  const w = stimulus.clientWidth;
+  const h = stimulus.clientHeight;
+
+  if (!w || !h) return;
+
+  stage.style.width = `${w}px`;
+  stage.style.height = `${h}px`;
+
+  heatmapContainer.style.width = `${w}px`;
+  heatmapContainer.style.height = `${h}px`;
+}
+
 function createHeatmap() {
+  syncStageSize();
   heatmapContainer.innerHTML = "";
-  heatmapContainer.style.width = stimulus.clientWidth + "px";
-  heatmapContainer.style.height = stimulus.clientHeight + "px";
 
   heatmap = h337.create({
     container: heatmapContainer,
     radius: 40,
     maxOpacity: 0.75,
-    minOpacity: 0.1,
+    minOpacity: 0.08,
     blur: 0.9,
     gradient: {
       0.2: "blue",
@@ -32,11 +44,6 @@ function createHeatmap() {
   });
 
   heatmap.setData({ max: 1, data: [] });
-}
-
-function resizeHeatmap() {
-  if (!stimulus.clientWidth || !stimulus.clientHeight) return;
-  createHeatmap();
 }
 
 function getRelativePosition(event) {
@@ -66,10 +73,16 @@ function aggregatePoints(data, gridSize = 20) {
   return Object.values(map);
 }
 
-stimulus.addEventListener("load", resizeHeatmap);
-window.addEventListener("resize", resizeHeatmap);
+stimulus.addEventListener("load", () => {
+  createHeatmap();
+});
 
-wrapper.addEventListener("mousemove", (event) => {
+window.addEventListener("resize", () => {
+  if (!stimulus.clientWidth || !stimulus.clientHeight) return;
+  createHeatmap();
+});
+
+stage.addEventListener("mousemove", (event) => {
   if (!tracking) return;
 
   const pos = getRelativePosition(event);
@@ -102,12 +115,12 @@ showBtn.addEventListener("click", () => {
   }
 
   const aggregated = aggregatePoints(rawData, 20);
-  const maxValue = Math.max(...aggregated.map((p) => p.value));
+  const maxValue = Math.max(...aggregated.map((p) => p.value), 1);
 
   if (!heatmap) createHeatmap();
 
   heatmap.setData({
-    max: maxValue || 1,
+    max: maxValue,
     data: aggregated
   });
 });
@@ -141,5 +154,5 @@ downloadBtn.addEventListener("click", () => {
 });
 
 if (stimulus.complete) {
-  resizeHeatmap();
+  createHeatmap();
 }
