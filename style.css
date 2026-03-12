@@ -5,16 +5,12 @@ body {
   background: #f2f2f2;
 }
 
-#wrapper {
-  display: inline-block;
-  margin-top: 20px;
-}
-
+/* Contenedor relativo para que el mapa se posicione sobre la imagen */
 #stage {
   position: relative;
   display: inline-block;
-  width: fit-content;
-  line-height: 0;
+  margin-top: 20px;
+  line-height: 0; /* Elimina espacio extra debajo de la imagen */
 }
 
 #stimulus {
@@ -24,16 +20,22 @@ body {
   height: auto;
 }
 
+/* El mapa ocupa todo el espacio del stage */
 #heatmap {
   position: absolute;
-  inset: 0;
-  pointer-events: none;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Permite que el mouse detecte el stage debajo */
   z-index: 10;
 }
 
-#heatmap > canvas {
-  position: absolute !important;
-  inset: 0 !important;
+/* Asegura que el canvas interno de heatmap.js sea responsivo */
+#heatmap canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .controls {

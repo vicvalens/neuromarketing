@@ -1,3 +1,4 @@
+// Referencias a elementos
 const stage = document.getElementById("stage");
 const stimulus = document.getElementById("stimulus");
 const heatmapContainer = document.getElementById("heatmap");
@@ -9,49 +10,34 @@ const downloadBtn = document.getElementById("downloadBtn");
 
 let tracking = false;
 let rawData = [];
-let heatmap = null;
+let heatmapInstance = null;
 
-function syncStageSize() {
-  const w = stimulus.clientWidth;
-  const h = stimulus.clientHeight;
-
-  if (!w || !h) return;
-
-  stage.style.width = `${w}px`;
-  stage.style.height = `${h}px`;
-
-  heatmapContainer.style.width = `${w}px`;
-  heatmapContainer.style.height = `${h}px`;
-}
-
+// Configura y crea la instancia del mapa de calor
 function createHeatmap() {
   if (typeof h337 === "undefined") {
     console.error("heatmap.js no cargó");
     return;
   }
 
+  // Limpiar contenido previo
   heatmapContainer.innerHTML = "";
-  heatmapContainer.style.width = stimulus.clientWidth + "px";
-  heatmapContainer.style.height = stimulus.clientHeight + "px";
+  
+  // Sincronizar tamaño del contenedor con la imagen real
+  const w = stimulus.clientWidth;
+  const h = stimulus.clientHeight;
+  heatmapContainer.style.width = w + "px";
+  heatmapContainer.style.height = h + "px";
 
-  heatmap = h337.create({
+  heatmapInstance = h337.create({
     container: heatmapContainer,
     radius: 40,
-    maxOpacity: 0.75,
-    minOpacity: 0.1,
-    blur: 0.9,
-    gradient: {
-      0.2: "blue",
-      0.4: "cyan",
-      0.6: "lime",
-      0.8: "yellow",
-      1.0: "red"
-    }
+    maxOpacity: 0.7,
+    minOpacity: 0,
+    blur: 0.85
   });
-
-  heatmap.setData({ max: 1, data: [] });
 }
 
+// Obtener coordenadas relativas a la imagen
 function getRelativePosition(event) {
   const rect = stimulus.getBoundingClientRect();
   const x = event.clientX - rect.left;
@@ -61,33 +47,20 @@ function getRelativePosition(event) {
   return { x, y };
 }
 
-function aggregatePoints(data, gridSize = 20) {
+// Agrupar puntos cercanos para mejorar la visualización
+function aggregatePoints(data, gridSize = 10) {
   const map = {};
-
   data.forEach((p) => {
     const gx = Math.round(p.x / gridSize) * gridSize;
     const gy = Math.round(p.y / gridSize) * gridSize;
     const key = `${gx}_${gy}`;
-
-    if (!map[key]) {
-      map[key] = { x: gx, y: gy, value: 0 };
-    }
-
+    if (!map[key]) map[key] = { x: gx, y: gy, value: 0 };
     map[key].value += 1;
   });
-
   return Object.values(map);
 }
 
-stimulus.addEventListener("load", () => {
-  createHeatmap();
-});
-
-window.addEventListener("resize", () => {
-  if (!stimulus.clientWidth || !stimulus.clientHeight) return;
-  createHeatmap();
-});
-
+// Eventos de ratón
 stage.addEventListener("mousemove", (event) => {
   if (!tracking) return;
 
@@ -101,37 +74,27 @@ stage.addEventListener("mousemove", (event) => {
   });
 });
 
+// Botones
 startBtn.addEventListener("click", () => {
   tracking = true;
   rawData = [];
-
-  alert("Registro iniciado");
-
-  if (!heatmap) {
-    createHeatmap();
-  } else {
-    heatmap.setData({ max: 1, data: [] });
-  }
+  if (heatmapInstance) heatmapInstance.setData({ max: 0, data: [] });
+  alert("Grabación iniciada. Mueve el mouse sobre la imagen.");
 });
 
 showBtn.addEventListener("click", () => {
   if (!rawData.length) {
-    alert("No hay datos registrados.");
+    alert("No hay datos para mostrar.");
     return;
   }
+  
+  tracking = false; // Detener seguimiento al mostrar
+  createHeatmap(); // Asegurar que el tamaño sea correcto
 
-  if (typeof h337 === "undefined") {
-    alert("La librería heatmap.js no cargó.");
-    return;
-  }
+  const aggregated = aggregatePoints(rawData, 15);
+  const maxValue = Math.max(...aggregated.map((p) => p.value));
 
-  const aggregated = aggregatePoints(rawData, 20);
-  const maxValue = Math.max(...aggregated.map((p) => p.value), 1);
-
-  if (!heatmap) createHeatmap();
-  if (!heatmap) return;
-
-  heatmap.setData({
+  heatmapInstance.setData({
     max: maxValue,
     data: aggregated
   });
@@ -140,31 +103,24 @@ showBtn.addEventListener("click", () => {
 clearBtn.addEventListener("click", () => {
   tracking = false;
   rawData = [];
-
-  if (heatmap) {
-    heatmap.setData({ max: 1, data: [] });
-  }
+  if (heatmapInstance) heatmapInstance.setData({ max: 0, data: [] });
+  alert("Datos limpiados.");
 });
 
 downloadBtn.addEventListener("click", () => {
   const data = {
     image: stimulus.getAttribute("src"),
     timestamp: new Date().toISOString(),
-    raw_mouse_data: rawData
+    points: rawData
   };
-
-  const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: "application/json"
-  });
-
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "mouse_heatmap_data.json";
+  a.download = "tracking_data.json";
   a.click();
-  URL.revokeObjectURL(url);
 });
 
-if (stimulus.complete) {
-  createHeatmap();
-}
+// Inicialización cuando la imagen carga
+stimulus.onload = () => createHeatmap();
+window.onresize = () => createHeatmap();
