@@ -7,47 +7,40 @@ const showBtn = document.getElementById("showBtn");
 const clearBtn = document.getElementById("clearBtn");
 const downloadBtn = document.getElementById("downloadBtn");
 
-const aggregated = aggregatePoints(rawData, 20);
-
 let tracking = false;
 let rawData = [];
+let heatmap = null;
 
-const heatmap = h337.create({
-  container: heatmapContainer,
-  radius: 40,
-  maxOpacity: 0.75,
-  minOpacity: 0.1,
-  blur: 0.9,
-  gradient: {
-    0.2: "blue",
-    0.4: "cyan",
-    0.6: "lime",
-    0.8: "yellow",
-    1.0: "red"
-  }
-});
+function createOrResetHeatmap() {
+  const w = stimulus.clientWidth;
+  const h = stimulus.clientHeight;
 
-function resizeHeatmap() {
-  heatmapContainer.style.width = stimulus.clientWidth + "px";
-  heatmapContainer.style.height = stimulus.clientHeight + "px";
-}
+  heatmapContainer.innerHTML = "";
+  heatmapContainer.style.width = `${w}px`;
+  heatmapContainer.style.height = `${h}px`;
 
-stimulus.addEventListener("load", resizeHeatmap);
-window.addEventListener("resize", resizeHeatmap);
+  heatmap = h337.create({
+    container: heatmapContainer,
+    radius: 35,
+    maxOpacity: 0.75,
+    minOpacity: 0.08,
+    blur: 0.9,
+    gradient: {
+      0.2: "blue",
+      0.4: "cyan",
+      0.6: "lime",
+      0.8: "yellow",
+      1.0: "red"
+    }
+  });
 
-function getRelativePosition(event) {
-  const rect = wrapper.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-
-  if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
-  return { x, y };
+  heatmap.setData({ max: 1, data: [] });
 }
 
 function aggregatePoints(data, gridSize = 20) {
   const map = {};
 
-  data.forEach(p => {
+  data.forEach((p) => {
     const gx = Math.round(p.x / gridSize) * gridSize;
     const gy = Math.round(p.y / gridSize) * gridSize;
     const key = `${gx}_${gy}`;
@@ -61,6 +54,25 @@ function aggregatePoints(data, gridSize = 20) {
 
   return Object.values(map);
 }
+
+function getRelativePosition(event) {
+  const rect = stimulus.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+
+  if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+  return { x, y };
+}
+
+stimulus.addEventListener("load", () => {
+  createOrResetHeatmap();
+});
+
+window.addEventListener("resize", () => {
+  if (stimulus.complete) {
+    createOrResetHeatmap();
+  }
+});
 
 wrapper.addEventListener("mousemove", (event) => {
   if (!tracking) return;
@@ -78,7 +90,9 @@ wrapper.addEventListener("mousemove", (event) => {
 startBtn.addEventListener("click", () => {
   tracking = true;
   rawData = [];
-  heatmap.setData({ max: 5, data: [] });
+  if (heatmap) {
+    heatmap.setData({ max: 1, data: [] });
+  }
   alert("Registro iniciado");
 });
 
@@ -88,10 +102,15 @@ showBtn.addEventListener("click", () => {
     return;
   }
 
-  const aggregated = aggregatePoints(rawData, 20);
+  const aggregated = aggregatePoints(rawData, 18);
+  const maxValue = Math.max(...aggregated.map((p) => p.value));
+
+  if (!heatmap) {
+    createOrResetHeatmap();
+  }
 
   heatmap.setData({
-    max: Math.max(...aggregated.map(p => p.value)),
+    max: maxValue,
     data: aggregated
   });
 });
@@ -99,7 +118,9 @@ showBtn.addEventListener("click", () => {
 clearBtn.addEventListener("click", () => {
   tracking = false;
   rawData = [];
-  heatmap.setData({ max: 5, data: [] });
+  if (heatmap) {
+    heatmap.setData({ max: 1, data: [] });
+  }
 });
 
 downloadBtn.addEventListener("click", () => {
@@ -120,3 +141,7 @@ downloadBtn.addEventListener("click", () => {
   a.click();
   URL.revokeObjectURL(url);
 });
+
+if (stimulus.complete) {
+  createOrResetHeatmap();
+}
