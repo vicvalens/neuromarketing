@@ -12,13 +12,13 @@ let tracking = false;
 let rawData = [];
 
 // Ajustes principales
-const BASE_RADIUS = 42;          // tamaño base de difusión
-const EXTRA_RADIUS = 40;         // crecimiento extra según peso
+const BASE_RADIUS = 25;          // tamaño base de difusión
+const EXTRA_RADIUS = 20;         // crecimiento extra según peso
 const MIN_DT = 8;                // evita divisiones raras
 const SPEED_LOW = 0.05;          // muy lento
 const SPEED_HIGH = 1.2;          // rápido
 const STEP_SKIP = 1;             // 1 = usa todos los puntos
-const TRAIL_WEIGHT = 0.18;       // peso mínimo del recorrido
+const TRAIL_WEIGHT = 0.10;       // peso mínimo del recorrido
 const SLOW_WEIGHT_BOOST = 1.4;   // peso extra cuando va lento
 const STOP_WEIGHT_BOOST = 2.2;   // peso extra cuando casi se detiene
 
