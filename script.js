@@ -10,20 +10,17 @@ const downloadBtn = document.getElementById("downloadBtn");
 
 let tracking = false;
 let rawData = [];
-let weightedPoints = [];
 
-let lastPoint = null;
-let clusterStartTime = null;
-let clusterPoints = [];
-
-/*
-  AJUSTES
-*/
-const FIXATION_RADIUS = 34;     // radio espacial para agrupar permanencia
-const MIN_FIXATION_MS = 90;     // mínimo para aceptar microfijaciones
-const MERGE_RADIUS = 42;        // fusiona fijaciones cercanas
-const BASE_HEAT_RADIUS = 85;    // tamaño base del heatmap visual
-const MAX_EXTRA_RADIUS = 45;    // expansión extra según intensidad
+// Ajustes principales
+const BASE_RADIUS = 42;          // tamaño base de difusión
+const EXTRA_RADIUS = 40;         // crecimiento extra según peso
+const MIN_DT = 8;                // evita divisiones raras
+const SPEED_LOW = 0.05;          // muy lento
+const SPEED_HIGH = 1.2;          // rápido
+const STEP_SKIP = 1;             // 1 = usa todos los puntos
+const TRAIL_WEIGHT = 0.18;       // peso mínimo del recorrido
+const SLOW_WEIGHT_BOOST = 1.4;   // peso extra cuando va lento
+const STOP_WEIGHT_BOOST = 2.2;   // peso extra cuando casi se detiene
 
 function resizeCanvas() {
   const w = stimulus.clientWidth;
@@ -50,75 +47,41 @@ function getRelativePosition(event) {
   return { x, y };
 }
 
-function distance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
 }
 
-function averagePoint(points) {
-  const sum = points.reduce(
-    (acc, p) => {
-      acc.x += p.x;
-      acc.y += p.y;
-      return acc;
-    },
-    { x: 0, y: 0 }
-  );
-
-  return {
-    x: sum.x / points.length,
-    y: sum.y / points.length
-  };
+function lerp(a, b, t) {
+  return a + (b - a) * t;
 }
 
-function finalizeCluster(endTime) {
-  if (!clusterPoints.length || clusterStartTime === null) return;
+function colorAt(t) {
+  const stops = [
+    { t: 0.00, c: [0, 0, 0, 0] },
+    { t: 0.08, c: [35, 60, 255, 70] },   // azul
+    { t: 0.22, c: [0, 190, 255, 110] },  // cian
+    { t: 0.38, c: [0, 255, 170, 145] },  // turquesa-verde
+    { t: 0.54, c: [60, 255, 60, 175] },  // verde
+    { t: 0.72, c: [255, 235, 0, 205] },  // amarillo
+    { t: 0.88, c: [255, 130, 0, 225] },  // naranja
+    { t: 1.00, c: [255, 0, 0, 240] }     // rojo
+  ];
 
-  const duration = endTime - clusterStartTime;
-  const center = averagePoint(clusterPoints);
-
-  if (duration >= MIN_FIXATION_MS) {
-    weightedPoints.push({
-      x: Math.round(center.x),
-      y: Math.round(center.y),
-      duration,
-      samples: clusterPoints.length
-    });
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a = stops[i];
+    const b = stops[i + 1];
+    if (t >= a.t && t <= b.t) {
+      const lt = (t - a.t) / (b.t - a.t);
+      return [
+        Math.round(lerp(a.c[0], b.c[0], lt)),
+        Math.round(lerp(a.c[1], b.c[1], lt)),
+        Math.round(lerp(a.c[2], b.c[2], lt)),
+        Math.round(lerp(a.c[3], b.c[3], lt))
+      ];
+    }
   }
 
-  clusterPoints = [];
-  clusterStartTime = null;
-}
-
-function mergeNearbyFixations(points, mergeRadius = MERGE_RADIUS) {
-  const merged = [];
-
-  points.forEach((fix) => {
-    const existing = merged.find((m) => {
-      const d = Math.hypot(m.x - fix.x, m.y - fix.y);
-      return d <= mergeRadius;
-    });
-
-    if (existing) {
-      const totalWeight = existing.weight + fix.duration;
-      existing.x = Math.round(
-        (existing.x * existing.weight + fix.x * fix.duration) / totalWeight
-      );
-      existing.y = Math.round(
-        (existing.y * existing.weight + fix.y * fix.duration) / totalWeight
-      );
-      existing.weight += fix.duration;
-      existing.samples += fix.samples || 1;
-    } else {
-      merged.push({
-        x: fix.x,
-        y: fix.y,
-        weight: fix.duration,
-        samples: fix.samples || 1
-      });
-    }
-  });
-
-  return merged;
+  return stops[stops.length - 1].c;
 }
 
 function createAlphaStamp(radius, alphaStrength = 1.0) {
@@ -130,10 +93,10 @@ function createAlphaStamp(radius, alphaStrength = 1.0) {
   const sctx = stamp.getContext("2d");
   const gradient = sctx.createRadialGradient(radius, radius, 0, radius, radius, radius);
 
-  gradient.addColorStop(0.0, `rgba(0,0,0,${0.28 * alphaStrength})`);
-  gradient.addColorStop(0.2, `rgba(0,0,0,${0.22 * alphaStrength})`);
-  gradient.addColorStop(0.45, `rgba(0,0,0,${0.14 * alphaStrength})`);
-  gradient.addColorStop(0.7, `rgba(0,0,0,${0.07 * alphaStrength})`);
+  gradient.addColorStop(0.0, `rgba(0,0,0,${0.22 * alphaStrength})`);
+  gradient.addColorStop(0.2, `rgba(0,0,0,${0.18 * alphaStrength})`);
+  gradient.addColorStop(0.45, `rgba(0,0,0,${0.11 * alphaStrength})`);
+  gradient.addColorStop(0.75, `rgba(0,0,0,${0.05 * alphaStrength})`);
   gradient.addColorStop(1.0, "rgba(0,0,0,0)");
 
   sctx.fillStyle = gradient;
@@ -142,66 +105,76 @@ function createAlphaStamp(radius, alphaStrength = 1.0) {
   return stamp;
 }
 
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
+function buildWeightedAttentionPoints(data) {
+  if (data.length < 2) return [];
 
-function colorAt(t) {
-  const stops = [
-    { t: 0.00, c: [0, 0, 0, 0] },
-    { t: 0.08, c: [0, 60, 255, 70] },
-    { t: 0.22, c: [0, 160, 255, 110] },
-    { t: 0.40, c: [0, 255, 180, 145] },
-    { t: 0.58, c: [120, 255, 0, 170] },
-    { t: 0.74, c: [255, 230, 0, 200] },
-    { t: 0.88, c: [255, 120, 0, 220] },
-    { t: 1.00, c: [255, 0, 0, 235] }
-  ];
+  const weighted = [];
 
-  for (let i = 0; i < stops.length - 1; i++) {
-    const a = stops[i];
-    const b = stops[i + 1];
-    if (t >= a.t && t <= b.t) {
-      const localT = (t - a.t) / (b.t - a.t);
-      return [
-        Math.round(lerp(a.c[0], b.c[0], localT)),
-        Math.round(lerp(a.c[1], b.c[1], localT)),
-        Math.round(lerp(a.c[2], b.c[2], localT)),
-        Math.round(lerp(a.c[3], b.c[3], localT))
-      ];
+  for (let i = 1; i < data.length; i += STEP_SKIP) {
+    const prev = data[i - 1];
+    const curr = data[i];
+
+    const dx = curr.x - prev.x;
+    const dy = curr.y - prev.y;
+    const dist = Math.hypot(dx, dy);
+    const dt = Math.max(MIN_DT, curr.t - prev.t);
+    const speed = dist / dt; // px/ms
+
+    // normalización invertida: más lento = más peso
+    const speedNorm = clamp((speed - SPEED_LOW) / (SPEED_HIGH - SPEED_LOW), 0, 1);
+    const slowFactor = 1 - speedNorm;
+
+    let weight = TRAIL_WEIGHT + slowFactor * SLOW_WEIGHT_BOOST;
+
+    // casi quieto => peso mucho mayor
+    if (speed < 0.08) {
+      weight += STOP_WEIGHT_BOOST;
     }
+
+    // también cuenta el tiempo transcurrido
+    weight *= clamp(dt / 16, 0.7, 2.5);
+
+    weighted.push({
+      x: curr.x,
+      y: curr.y,
+      weight,
+      speed,
+      dt
+    });
   }
 
-  return stops[stops.length - 1].c;
+  return weighted;
 }
 
-function renderProfessionalHeatmap(fixations) {
+function renderContinuousHeatmap(weightedPoints) {
   clearHeatmap();
-  if (!fixations.length) return;
+  if (!weightedPoints.length) return;
 
   const off = document.createElement("canvas");
   off.width = canvas.width;
   off.height = canvas.height;
   const offCtx = off.getContext("2d");
 
-  const maxWeight = Math.max(...fixations.map((f) => f.weight), 1);
+  const maxWeight = Math.max(...weightedPoints.map(p => p.weight), 1);
 
-  fixations.forEach((f) => {
-    const ratio = f.weight / maxWeight;
+  weightedPoints.forEach((p) => {
+    const ratio = p.weight / maxWeight;
 
-    const radius = Math.round(
-      BASE_HEAT_RADIUS + Math.min(MAX_EXTRA_RADIUS, ratio * MAX_EXTRA_RADIUS)
-    );
+    // radio variable: lento y pesado = más grande
+    const radius = Math.round(BASE_RADIUS + ratio * EXTRA_RADIUS);
 
-    const alphaStrength = 0.7 + ratio * 1.6;
+    // alpha más visible y continua
+    const alphaStrength = 0.45 + ratio * 1.8;
+
     const stamp = createAlphaStamp(radius, alphaStrength);
+    offCtx.drawImage(stamp, p.x - radius, p.y - radius);
 
-    offCtx.drawImage(stamp, f.x - radius, f.y - radius);
-
-    // Refuerzo del núcleo para que haya centros más cálidos
-    const coreRadius = Math.round(radius * 0.42);
-    const coreStamp = createAlphaStamp(coreRadius, 1.2 + ratio * 2.0);
-    offCtx.drawImage(coreStamp, f.x - coreRadius, f.y - coreRadius);
+    // núcleo adicional para zonas realmente atendidas
+    if (ratio > 0.45) {
+      const coreRadius = Math.round(radius * 0.42);
+      const coreStamp = createAlphaStamp(coreRadius, 1.1 + ratio * 1.6);
+      offCtx.drawImage(coreStamp, p.x - coreRadius, p.y - coreRadius);
+    }
   });
 
   const imageData = offCtx.getImageData(0, 0, off.width, off.height);
@@ -218,8 +191,8 @@ function renderProfessionalHeatmap(fixations) {
 
     let t = alpha / maxAlpha;
 
-    // Curva para ampliar zonas medias y evitar solo manchas duras
-    t = Math.pow(t, 0.78);
+    // Curva para abrir más rango medio y mostrar más arcoíris
+    t = Math.pow(t, 0.62);
 
     const [r, g, b, a] = colorAt(t);
     data[i] = r;
@@ -240,90 +213,44 @@ wrapper.addEventListener("mousemove", (event) => {
   const pos = getRelativePosition(event);
   if (!pos) return;
 
-  const now = performance.now();
-
   rawData.push({
     x: Math.round(pos.x),
     y: Math.round(pos.y),
-    t: now
+    t: performance.now()
   });
-
-  if (!lastPoint) {
-    lastPoint = pos;
-    clusterStartTime = now;
-    clusterPoints = [pos];
-    return;
-  }
-
-  const d = distance(lastPoint, pos);
-
-  if (d <= FIXATION_RADIUS) {
-    clusterPoints.push(pos);
-  } else {
-    finalizeCluster(now);
-    clusterStartTime = now;
-    clusterPoints = [pos];
-  }
-
-  lastPoint = pos;
-});
-
-wrapper.addEventListener("mouseleave", () => {
-  if (!tracking) return;
-  finalizeCluster(performance.now());
-  lastPoint = null;
 });
 
 startBtn.addEventListener("click", () => {
   tracking = true;
   rawData = [];
-  weightedPoints = [];
-  lastPoint = null;
-  clusterStartTime = null;
-  clusterPoints = [];
   clearHeatmap();
   alert("Registro iniciado");
 });
 
 showBtn.addEventListener("click", () => {
-  if (!rawData.length) {
-    alert("No hay datos registrados.");
+  if (rawData.length < 2) {
+    alert("No hay suficientes datos registrados.");
     return;
   }
 
-  finalizeCluster(performance.now());
-
-  const merged = mergeNearbyFixations(weightedPoints, MERGE_RADIUS);
-
-  if (!merged.length) {
-    alert("No se detectaron zonas suficientes. Haz pausas cortas sobre distintas áreas.");
-    return;
-  }
-
-  renderProfessionalHeatmap(merged);
+  const weighted = buildWeightedAttentionPoints(rawData);
+  renderContinuousHeatmap(weighted);
 });
 
 clearBtn.addEventListener("click", () => {
   tracking = false;
   rawData = [];
-  weightedPoints = [];
-  lastPoint = null;
-  clusterStartTime = null;
-  clusterPoints = [];
   clearHeatmap();
 });
 
 downloadBtn.addEventListener("click", () => {
-  finalizeCluster(performance.now());
-
-  const merged = mergeNearbyFixations(weightedPoints, MERGE_RADIUS);
+  const weighted = buildWeightedAttentionPoints(rawData);
 
   const data = {
     image: stimulus.getAttribute("src"),
     timestamp: new Date().toISOString(),
     raw_mouse_data: rawData,
-    fixation_like_points: weightedPoints,
-    merged_attention_areas: merged
+    weighted_attention_points: weighted
   };
 
   const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -333,7 +260,7 @@ downloadBtn.addEventListener("click", () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "mouse_professional_heatmap_data.json";
+  a.download = "mouse_continuous_heatmap_data.json";
   a.click();
   URL.revokeObjectURL(url);
 });
