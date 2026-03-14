@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Heatmap en cubo - A-Frame</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+
+  <script>
+    AFRAME.registerComponent('click-heatmap', {
+      schema: {
+        size: { type: 'int', default: 512 },
+        pointRadius: { type: 'number', default: 35 }
+      },
+
+      init: function () {
+        const size = this.data.size;
+
+        // Canvas donde se dibuja el heatmap
+        this.canvas = document.createElement('canvas');
+        this.canvas.width = size;
+        this.canvas.height = size;
+        this.ctx = this.canvas.getContext('2d');
+
+        // Fondo gris para que el cubo no se vea negro
+        this.ctx.fillStyle = '#777';
+        this.ctx.fillRect(0, 0, size, size);
+
+        // Textura dinámica
+        this.texture = new THREE.CanvasTexture(this.canvas);
+        this.texture.needsUpdate = true;
+
+        this.onClick = this.onClick.bind(this);
+        this.applyTexture = this.applyTexture.bind(this);
+
+        // Esperar a que el objeto exista completamente
+        this.el.addEventListener('loaded', this.applyTexture);
+
+        // Escuchar clics sobre el cubo
+        this.el.addEventListener('click', this.onClick);
+      },
+
+      applyTexture: function () {
+        const mesh = this.el.getObject3D('mesh');
+
+        if (!mesh) {
+          console.log('No se encontró mesh en el cubo');
+          return;
+        }
+
+        // Si el mesh tiene material directo
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(mat => {
+              mat.map = this.texture;
+              mat.needsUpdate = true;
+            });
+          } else {
+            mesh.material.map = this.texture;
+            mesh.material.needsUpdate = true;
+          }
+        }
+
+        // Por seguridad, recorrer hijos si los hubiera
+        mesh.traverse(node => {
+          if (node.isMesh && node.material) {
+            if (Array.isArray(node.material)) {
+              node.material.forEach(mat => {
+                mat.map = this.texture;
+                mat.needsUpdate = true;
+              });
+            } else {
+              node.material.map = this.texture;
+              node.material.needsUpdate = true;
+            }
+          }
+        });
+
+        console.log('Textura heatmap aplicada al cubo');
+      },
+
+      onClick: function (evt) {
+        const intersection = evt.detail.intersection;
+
+        if (!intersection) {
+          console.log('No hubo intersección');
+          return;
+        }
+
+        if (!intersection.uv) {
+          console.log('No hay UV en la intersección');
+          return;
+        }
+
+        const uv = intersection.uv;
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+
+        const x = uv.x * w;
+        const y = (1 - uv.y) * h;
+
+        this.addHeatPoint(x, y);
+        this.texture.needsUpdate = true;
+
+        console.log('Clic detectado en UV:', uv.x, uv.y, '->', x, y);
+      },
+
+      addHeatPoint: function (x, y) {
+        const ctx = this.ctx;
+        const r = this.data.pointRadius;
+
+        const grd = ctx.createRadialGradient(x, y, 0, x, y, r);
+        grd.addColorStop(0.0, 'rgba(255,255,255,1)');
+        grd.addColorStop(0.20, 'rgba(255,255,0,1)');
+        grd.addColorStop(0.50, 'rgba(255,140,0,0.95)');
+        grd.addColorStop(0.75, 'rgba(255,0,0,0.65)');
+        grd.addColorStop(1.0, 'rgba(255,0,0,0)');
+
+        ctx.fillStyle = grd;
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+    });
+  </script>
+</head>
+
+<body>
+  <a-scene background="color: #DADADA">
+    <!-- Luces -->
+    <a-entity light="type: ambient; intensity: 1.3"></a-entity>
+    <a-entity light="type: directional; intensity: 1.1" position="1 2 1"></a-entity>
+
+    <!-- Cámara con cursor para clic con mouse -->
+    <a-entity position="0 1.6 0">
+      <a-camera>
+        <a-cursor rayOrigin="mouse"></a-cursor>
+      </a-camera>
+    </a-entity>
+
+    <!-- Cubo con heatmap -->
+    <a-box
+      position="0 1.5 -3"
+      rotation="0 30 0"
+      depth="1.2"
+      height="1.2"
+      width="1.2"
+      click-heatmap="size: 512; pointRadius: 40">
+    </a-box>
+  </a-scene>
+</body>
+</html>
