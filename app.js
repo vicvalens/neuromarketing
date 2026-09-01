@@ -54,6 +54,9 @@ const candidateName = $("#candidateName");
 const focusComparison = $("#focusComparison");
 const competitionComparison = $("#competitionComparison");
 const hotspotComparison = $("#hotspotComparison");
+const focusComparisonLabel = $("#focusComparisonLabel");
+const competitionComparisonLabel = $("#competitionComparisonLabel");
+const hotspotComparisonLabel = $("#hotspotComparisonLabel");
 const similarityComparison = $("#similarityComparison");
 const differenceCanvas = $("#differenceCanvas");
 const winnerPanel = $("#winnerPanel");
@@ -169,8 +172,8 @@ function resetSession(keepImage = true) {
   comparisonResults.hidden = true;
   winnerPanel.hidden = true;
   comparisonStatus.textContent = comparisonBaseline
-    ? `Baseline saved: ${comparisonBaseline.name}. Analyze a revised render, then mark Product and Distractor.`
-    : "Run an automatic analysis and mark Product and Distractor.";
+    ? `${comparisonBaseline.method === "cursor" ? "Participant cursor" : "Automatic saliency"} baseline saved: ${comparisonBaseline.name}. Repeat the same method on a revised render.`
+    : "Run an analysis and mark Product and Distractor.";
   aoiCanvas.hidden = true;
   aoiCanvas.classList.remove("drawing");
   aoiTypeSelect.value = "";
@@ -430,6 +433,38 @@ function attentionGrid() {
   return { width, height, values };
 }
 
+function currentStudyMethod() {
+  return automaticMap ? "automatic" : "cursor";
+}
+
+function currentStudyReady() {
+  return Boolean((automaticMap || fixations.length) && hasRequiredAreas());
+}
+
+function currentAttentionMap() {
+  const grid = attentionGrid();
+  return { width: grid.width, height: grid.height, values: normalize(grid.values) };
+}
+
+function currentComparisonMetrics() {
+  if (automaticMap && automaticMetrics) return automaticMetrics;
+  const map = currentAttentionMap();
+  const sorted = [...map.values].sort((a, b) => b - a);
+  const total = sorted.reduce((sum, value) => sum + value, 0) || 1;
+  const topCount = Math.max(1, Math.round(sorted.length * 0.1));
+  const topShare = sorted.slice(0, topCount).reduce((sum, value) => sum + value, 0) / total;
+  const concentration = topShare > 0.58 ? "High" : topShare > 0.43 ? "Moderate" : "Distributed";
+  const competition = fixations.length >= 8 ? "High" : fixations.length >= 4 ? "Moderate" : "Low";
+  return {
+    concentration,
+    competition,
+    primary: fixations[0] ? describeHotspot(fixations[0]) : "Not detected",
+    topShare,
+    fixationCount: fixations.length,
+    dwellTimeMs: fixations.reduce((sum, fixation) => sum + (fixation.duration || 0), 0)
+  };
+}
+
 function measureAoi(aoi) {
   if (!samples.length && !automaticMap) return 0;
   const grid = attentionGrid();
@@ -546,12 +581,15 @@ function updateAreaValidation() {
 }
 
 function updateBaselineAvailability() {
-  const ready = Boolean(automaticMap && automaticMetrics && hasRequiredAreas());
+  const hasStudy = Boolean(automaticMap || fixations.length);
+  const ready = currentStudyReady();
   saveBaselineBtn.disabled = !ready;
-  if (automaticMap && !hasRequiredAreas()) {
+  if (hasStudy && !hasRequiredAreas()) {
     comparisonStatus.textContent = "Mark Product and Distractor to enable the baseline.";
   } else if (ready && !comparisonBaseline) {
-    comparisonStatus.textContent = "Required areas ready. Save the current render as the baseline.";
+    comparisonStatus.textContent = `${currentStudyMethod() === "cursor" ? "Participant cursor" : "Automatic saliency"} study ready. Save the current render as the baseline.`;
+  } else if (ready && comparisonBaseline && comparisonBaseline.method !== currentStudyMethod()) {
+    comparisonStatus.textContent = `This baseline uses ${comparisonBaseline.method === "cursor" ? "Participant cursor" : "Automatic saliency"}. Use the same method for the revised render.`;
   } else if (ready && comparisonBaseline && comparisonResults.hidden) {
     comparisonStatus.textContent = `Baseline saved: ${comparisonBaseline.name}. Analyze the revised render.`;
   } else if (ready && comparisonBaseline) {
@@ -591,14 +629,14 @@ function productEmphasisScore(areas, metrics, primaryPoint) {
 
 function updateWinner() {
   winnerPanel.hidden = true;
-  if (!comparisonBaseline || !automaticMap || !automaticMetrics || !hasRequiredAreas()) return;
+  if (!comparisonBaseline || !currentStudyReady() || comparisonBaseline.method !== currentStudyMethod()) return;
   const baselineResult = productEmphasisScore(
     comparisonBaseline.areas,
     comparisonBaseline.metrics,
     comparisonBaseline.primaryPoint
   );
   const currentAreas = aois.map((area) => ({ ...area, attention: measureAoi(area) }));
-  const currentResult = productEmphasisScore(currentAreas, automaticMetrics, fixations[0]);
+  const currentResult = productEmphasisScore(currentAreas, currentComparisonMetrics(), fixations[0]);
   const areaQuality = evaluateAreaQuality();
   beforeScore.textContent = `${Math.round(baselineResult.score)}/100`;
   afterScore.textContent = `${Math.round(currentResult.score)}/100`;
@@ -652,9 +690,10 @@ function updateStudySummary() {
     recommendations.push("Recommendations will appear after the image is analyzed.");
   } else {
     const method = automaticMap ? "The automatic saliency estimate" : "The participant cursor test";
-    const primary = automaticMetrics?.primary || (fixations[0] ? "the first recorded fixation" : "an undetermined region");
-    const concentration = automaticMetrics?.concentration || "observed";
-    const competition = automaticMetrics?.competition || "not automatically classified";
+    const studyMetrics = currentComparisonMetrics();
+    const primary = studyMetrics.primary;
+    const concentration = studyMetrics.concentration;
+    const competition = studyMetrics.competition;
     let conclusion = `${method} shows ${concentration.toLowerCase()} focus concentration, with the primary attention point located at ${primary}. Visual competition is ${competition.toLowerCase()}.`;
     if (perceptualMetrics && !perceptionPanel.hidden) conclusion += ` Perceptually, ${perceptionReading.textContent.replace(/^The image is visually perceived as /, "the image reads as ")}`;
     if (!winnerPanel.hidden && winnerName.textContent !== "—") {
@@ -662,8 +701,8 @@ function updateStudySummary() {
     }
     studyConclusion.textContent = conclusion;
 
-    if (automaticMetrics?.competition === "High") recommendations.push("Reduce secondary high-contrast details so fewer elements compete with the intended focal point.");
-    else if (automaticMetrics?.competition === "Moderate") recommendations.push("Strengthen the hierarchy by giving the principal element a clearer contrast or scale advantage.");
+    if (studyMetrics.competition === "High") recommendations.push(automaticMap ? "Reduce secondary high-contrast details so fewer elements compete with the intended focal point." : "The participant produced many fixation clusters; simplify competing elements or strengthen the intended focal point.");
+    else if (studyMetrics.competition === "Moderate") recommendations.push("Strengthen the hierarchy by giving the principal element a clearer contrast or scale advantage.");
     else recommendations.push("Preserve the clear hierarchy while checking that supporting details remain legible.");
 
     if (hasRequiredAreas()) {
@@ -708,6 +747,7 @@ function updateAoiTable() {
   updateBaselineAvailability();
   updateWinner();
   updateStudySummary();
+  if (comparisonBaseline && currentStudyReady()) updateComparison();
 }
 
 function renderAois() {
@@ -884,45 +924,69 @@ function similarityLabel(value) {
 }
 
 function saveCurrentAsBaseline() {
-  if (!automaticMap || !automaticMetrics || !hasRequiredAreas()) return;
+  if (!currentStudyReady()) return;
+  const map = currentAttentionMap();
+  const metrics = currentComparisonMetrics();
   comparisonBaseline = {
     name: imageName,
+    method: currentStudyMethod(),
     imageSource: snapshotStimulus(),
-    map: { width: automaticMap.width, height: automaticMap.height, values: Float32Array.from(automaticMap.values) },
-    metrics: { ...automaticMetrics },
+    map: { width: map.width, height: map.height, values: Float32Array.from(map.values) },
+    metrics: { ...metrics },
     primaryPoint: fixations[0] ? { ...fixations[0] } : null,
     areas: aois.map((area) => ({ ...area, attention: measureAoi(area) }))
   };
   saveBaselineBtn.textContent = "Replace baseline";
   comparisonResults.hidden = true;
   winnerPanel.hidden = true;
-  comparisonStatus.textContent = `Baseline saved: ${imageName}. Upload and analyze the revised render, then mark Product and Distractor.`;
+  comparisonStatus.textContent = `${comparisonBaseline.method === "cursor" ? "Participant cursor" : "Automatic saliency"} baseline saved: ${imageName}. Upload the revised render and repeat the same method.`;
 }
 
 async function updateComparison() {
-  if (!comparisonBaseline || !automaticMap || !automaticMetrics) return;
+  if (!comparisonBaseline || !currentStudyReady()) return;
+  if (comparisonBaseline.method !== currentStudyMethod()) {
+    comparisonResults.hidden = true;
+    comparisonStatus.textContent = `Method mismatch: the baseline uses ${comparisonBaseline.method === "cursor" ? "Participant cursor" : "Automatic saliency"}. Repeat that method for a valid comparison.`;
+    return;
+  }
   if (comparisonBaseline.name === imageName && comparisonBaseline.imageSource === stimulus.src) return;
   const candidateSource = snapshotStimulus();
+  const candidateMap = currentAttentionMap();
+  const candidateMetrics = currentComparisonMetrics();
   comparisonStatus.textContent = "Comparing baseline and current design…";
   const [, , similarity] = await Promise.all([
     renderComparisonImage(baselineCanvas, comparisonBaseline.imageSource, comparisonBaseline.map),
-    renderComparisonImage(candidateCanvas, candidateSource, automaticMap),
+    renderComparisonImage(candidateCanvas, candidateSource, candidateMap),
     computeImageSimilarity(comparisonBaseline.imageSource, candidateSource),
-    renderAttentionDifference(differenceCanvas, candidateSource, comparisonBaseline.map, automaticMap)
+    renderAttentionDifference(differenceCanvas, candidateSource, comparisonBaseline.map, candidateMap)
   ]);
   baselineName.textContent = comparisonBaseline.name;
   candidateName.textContent = imageName;
   const beforeShare = Math.round(comparisonBaseline.metrics.topShare * 100);
-  const afterShare = Math.round(automaticMetrics.topShare * 100);
+  const afterShare = Math.round(candidateMetrics.topShare * 100);
   const shareDelta = afterShare - beforeShare;
-  focusComparison.textContent = `${comparisonBaseline.metrics.concentration} → ${automaticMetrics.concentration} (${shareDelta >= 0 ? "+" : ""}${shareDelta} pts)`;
-  competitionComparison.textContent = `${comparisonBaseline.metrics.competition} → ${automaticMetrics.competition}`;
-  hotspotComparison.textContent = `${comparisonBaseline.metrics.primary} → ${automaticMetrics.primary}`;
+  if (comparisonBaseline.method === "cursor") {
+    focusComparisonLabel.textContent = "Attention concentration";
+    competitionComparisonLabel.textContent = "Fixation clusters";
+    hotspotComparisonLabel.textContent = "First attention point";
+    const beforeDwell = (comparisonBaseline.metrics.dwellTimeMs / 1000).toFixed(1);
+    const afterDwell = (candidateMetrics.dwellTimeMs / 1000).toFixed(1);
+    focusComparison.textContent = `${comparisonBaseline.metrics.concentration} → ${candidateMetrics.concentration} · dwell ${beforeDwell}s → ${afterDwell}s`;
+    competitionComparison.textContent = `${comparisonBaseline.metrics.fixationCount} → ${candidateMetrics.fixationCount}`;
+    hotspotComparison.textContent = `${comparisonBaseline.metrics.primary} → ${candidateMetrics.primary}`;
+  } else {
+    focusComparisonLabel.textContent = "Focus concentration";
+    competitionComparisonLabel.textContent = "Visual competition";
+    hotspotComparisonLabel.textContent = "Primary hotspot";
+    focusComparison.textContent = `${comparisonBaseline.metrics.concentration} → ${candidateMetrics.concentration} (${shareDelta >= 0 ? "+" : ""}${shareDelta} pts)`;
+    competitionComparison.textContent = `${comparisonBaseline.metrics.competition} → ${candidateMetrics.competition}`;
+    hotspotComparison.textContent = `${comparisonBaseline.metrics.primary} → ${candidateMetrics.primary}`;
+  }
   similarityComparison.textContent = similarityLabel(similarity);
   comparisonResults.hidden = false;
   winnerPanel.hidden = true;
   comparisonStatus.textContent = hasRequiredAreas()
-    ? "Comparison and Product emphasis recommendation ready."
+    ? `${comparisonBaseline.method === "cursor" ? "Participant behavior" : "Automatic saliency"} comparison and Product emphasis recommendation ready.`
     : "Comparison ready. Mark Product and Distractor on the revised render to calculate a winner.";
   updateWinner();
 }

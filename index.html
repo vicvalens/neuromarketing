@@ -10,7 +10,7 @@
   <body>
     <header class="site-header">
       <div>
-        <p class="eyebrow">NEURODESIGN LITE · V2.9.1</p>
+        <p class="eyebrow">NEURODESIGN LITE · V2.10</p>
         <h1>Visual attention exploration</h1>
         <p class="intro">
           Predict visual saliency automatically or record a participant's
@@ -173,7 +173,7 @@
           <button id="saveBaselineBtn" disabled>Save current as baseline</button>
         </div>
 
-        <p id="comparisonStatus" class="comparison-status">Run an automatic analysis and mark Product and Distractor.</p>
+        <p id="comparisonStatus" class="comparison-status">Run an analysis and mark Product and Distractor.</p>
 
         <div id="comparisonResults" class="comparison-results" hidden>
           <figure>
@@ -185,9 +185,9 @@
             <figcaption><span>After</span><strong id="candidateName">Current design</strong></figcaption>
           </figure>
           <div class="comparison-metrics">
-            <div><span>Focus concentration</span><strong id="focusComparison">—</strong></div>
-            <div><span>Visual competition</span><strong id="competitionComparison">—</strong></div>
-            <div><span>Primary hotspot</span><strong id="hotspotComparison">—</strong></div>
+            <div><span id="focusComparisonLabel">Focus concentration</span><strong id="focusComparison">—</strong></div>
+            <div><span id="competitionComparisonLabel">Visual competition</span><strong id="competitionComparison">—</strong></div>
+            <div><span id="hotspotComparisonLabel">Primary hotspot</span><strong id="hotspotComparison">—</strong></div>
             <div><span>Image similarity</span><strong id="similarityComparison">—</strong></div>
           </div>
           <figure class="difference-figure">
