@@ -1,0 +1,5 @@
+Neurodesign Lite V1
+
+Method: cursor-guided visual exploration
+Status: stable classroom prototype
+Features: timed recording, heatmap, scanpath, PNG export, JSON export/import

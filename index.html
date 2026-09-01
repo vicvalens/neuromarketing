@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="An educational cursor-guided visual exploration tool." />
+    <title>Neurodesign Lite</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">NEURODESIGN LITE · V1</p>
+        <h1>Cursor-guided visual exploration</h1>
+        <p class="intro">
+          Use the cursor to point at the areas that attract your attention. The tool
+          records dwell time and movement to build an attention heatmap.
+        </p>
+      </div>
+      <span class="method-label">Educational simulation · Not eye tracking</span>
+    </header>
+
+    <main>
+      <section class="setup-panel" aria-labelledby="setup-title">
+        <div>
+          <h2 id="setup-title">1. Prepare the test</h2>
+          <p>Upload a render and choose the exploration time.</p>
+        </div>
+
+        <label class="file-picker">
+          <span>Select render</span>
+          <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp" />
+        </label>
+
+        <label class="field">
+          <span>Duration</span>
+          <select id="durationSelect">
+            <option value="10">10 seconds</option>
+            <option value="20" selected>20 seconds</option>
+            <option value="30">30 seconds</option>
+            <option value="0">No time limit</option>
+          </select>
+        </label>
+
+        <button id="startBtn" class="primary" disabled>Start test</button>
+      </section>
+
+      <section class="workspace" aria-labelledby="workspace-title">
+        <div class="workspace-heading">
+          <div>
+            <h2 id="workspace-title">2. Explore the image</h2>
+            <p id="statusText" role="status">Upload an image to begin.</p>
+          </div>
+          <div class="timer" aria-label="Remaining time">
+            <span id="timerValue">00:20</span>
+          </div>
+        </div>
+
+        <div id="stage" class="stage" tabindex="0" aria-label="Visual exploration area">
+          <div id="emptyState" class="empty-state">
+            <span>PNG · JPG · WEBP</span>
+          <strong>Your render will appear here</strong>
+          </div>
+          <img id="stimulus" alt="Render used as a visual stimulus" hidden />
+          <canvas id="resultCanvas" hidden></canvas>
+          <div id="cursorIndicator" aria-hidden="true"></div>
+          <div id="recordingBadge" class="recording-badge" hidden>
+            <span></span> Recording
+          </div>
+        </div>
+
+        <div class="view-controls" aria-label="Result view">
+          <button class="view-btn active" data-view="original" disabled>Original</button>
+          <button class="view-btn" data-view="heatmap" disabled>Heatmap</button>
+          <button class="view-btn" data-view="scanpath" disabled>Scanpath</button>
+        </div>
+      </section>
+
+      <section class="analysis-panel" aria-labelledby="analysis-title">
+        <div>
+          <h2 id="analysis-title">3. Adjust and download</h2>
+          <p>Results are generated when the session ends.</p>
+        </div>
+
+        <label class="range-field">
+          <span>Heatmap opacity <output id="opacityOutput">65%</output></span>
+          <input id="opacityRange" type="range" min="10" max="100" value="65" />
+        </label>
+
+        <label class="range-field">
+          <span>Visible fixations <output id="fixationOutput">8</output></span>
+          <input id="fixationRange" type="range" min="3" max="15" value="8" />
+        </label>
+
+        <div class="button-group">
+          <button id="stopBtn" disabled>End session</button>
+          <button id="clearBtn" disabled>Reset</button>
+          <button id="downloadPngBtn" disabled>Download PNG</button>
+          <button id="downloadJsonBtn" disabled>Download JSON</button>
+        </div>
+
+        <label class="import-button">
+          <span>Import session JSON</span>
+          <input id="jsonInput" type="file" accept="application/json,.json" />
+        </label>
+      </section>
+
+      <section class="results" aria-labelledby="results-title">
+        <div>
+          <p class="eyebrow">READING THE RESULT</p>
+          <h2 id="results-title">Questions for interpreting the map</h2>
+        </div>
+        <ol>
+          <li>Which element received the first fixation?</li>
+          <li>Where was the longest dwell time concentrated?</li>
+          <li>Which important element was missed by the viewing path?</li>
+          <li>Does the observed order match the design intention?</li>
+          <li>What specific change could improve the visual hierarchy?</li>
+        </ol>
+        <div class="metrics" aria-live="polite">
+          <div><span>Samples</span><strong id="sampleMetric">0</strong></div>
+          <div><span>Fixations</span><strong id="fixationMetric">0</strong></div>
+          <div><span>Time</span><strong id="timeMetric">0.0 s</strong></div>
+        </div>
+      </section>
+
+      <aside class="disclaimer">
+        <strong>Methodological note</strong>
+        <p>
+          This map represents attention voluntarily indicated with the cursor.
+          It does not record eye movements or replace an eye-tracking study.
+        </p>
+      </aside>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
