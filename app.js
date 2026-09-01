@@ -386,6 +386,45 @@ function computePerceptualMetrics(pixels, luminance, saturation, normalizedEdges
   return { energy, temperature, boldness, complexity, vividness, meanLuminance, meanSaturation, luminanceContrast, meanEdge };
 }
 
+function computeStimulusPerceptualMetrics() {
+  if (!stimulus.src || !stimulus.naturalWidth || !stimulus.naturalHeight) return null;
+  const maxDimension = 320;
+  const scale = Math.min(1, maxDimension / Math.max(stimulus.naturalWidth, stimulus.naturalHeight));
+  const width = Math.max(32, Math.round(stimulus.naturalWidth * scale));
+  const height = Math.max(32, Math.round(stimulus.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(stimulus, 0, 0, width, height);
+  const pixels = ctx.getImageData(0, 0, width, height).data;
+  const luminance = new Float32Array(width * height);
+  const saturation = new Float32Array(width * height);
+  const edges = new Float32Array(width * height);
+
+  for (let i = 0; i < luminance.length; i += 1) {
+    const r = pixels[i * 4] / 255;
+    const g = pixels[i * 4 + 1] / 255;
+    const b = pixels[i * 4 + 2] / 255;
+    luminance[i] = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    saturation[i] = Math.max(r, g, b) - Math.min(r, g, b);
+  }
+
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const i = y * width + x;
+      const gx = -luminance[i - width - 1] + luminance[i - width + 1]
+        - 2 * luminance[i - 1] + 2 * luminance[i + 1]
+        - luminance[i + width - 1] + luminance[i + width + 1];
+      const gy = -luminance[i - width - 1] - 2 * luminance[i - width] - luminance[i - width + 1]
+        + luminance[i + width - 1] + 2 * luminance[i + width] + luminance[i + width + 1];
+      edges[i] = Math.hypot(gx, gy);
+    }
+  }
+
+  return computePerceptualMetrics(pixels, luminance, saturation, normalize(edges));
+}
+
 function renderPerceptualAnalysis() {
   if (!perceptualMetrics) {
     perceptionPanel.hidden = true;
@@ -1092,12 +1131,15 @@ function finishSession() {
   }
 
   fixations = detectFixations(samples);
+  perceptualMetrics = computeStimulusPerceptualMetrics();
   fixationMetric.textContent = String(fixations.length);
   timeMetric.textContent = `${((sessionEndedAt - sessionStartedAt) / 1000).toFixed(1)} s`;
   enableResultControls(true);
+  renderPerceptualAnalysis();
   updateAoiTable();
   setStatus(`Session complete: ${samples.length} samples and ${fixations.length} approximate fixations.`);
   setView("heatmap");
+  updateComparison();
 }
 
 function distance(a, b) {
@@ -1321,6 +1363,7 @@ async function importJson(file) {
     }
     samples = data.samples;
     fixations = Array.isArray(data.fixations) && data.fixations.length ? data.fixations : detectFixations(samples);
+    perceptualMetrics = data.perceptualMetrics || computeStimulusPerceptualMetrics();
     aois = Array.isArray(data.areasOfInterest) ? data.areasOfInterest.map(({ type, x, y, w, h, id }) => ({
       type, x, y, w, h, id: id || makeId()
     })) : [];
@@ -1332,6 +1375,7 @@ async function importJson(file) {
     clearBtn.disabled = false;
     clearAoiBtn.disabled = !aois.length;
     enableResultControls(true);
+    renderPerceptualAnalysis();
     updateAoiTable();
     setStatus(`Session imported: ${samples.length} samples and ${fixations.length} fixations.`);
     setView("heatmap");

@@ -1,5 +1,5 @@
-Neurodesign Lite V2.10
+Neurodesign Lite V2.11
 
 Methods: automatic bottom-up saliency and cursor-guided visual exploration
 Status: development version
-Features: automatic heatmap, automatic hotspots, cursor test, scanpath, method-specific automatic and participant before/after comparisons, auto-activated areas of interest, area validation and confidence, attention percentages, image similarity, attention difference map, goal-based winner score, emotional and perceptual image estimates, automatic study conclusion, design recommendations, printable academic report and PDF workflow
+Features: automatic heatmap, automatic hotspots, cursor test, scanpath, method-specific automatic and participant before/after comparisons, auto-activated areas of interest, area validation and confidence, attention percentages, image similarity, attention difference map, goal-based winner score, emotional and perceptual image estimates for both analysis methods, automatic study conclusion, design recommendations, and improved printable academic report layout

@@ -298,8 +298,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .report-heading button, .comparison-heading button, .remove-aoi, .disclaimer, .site-credit { display: none !important; }
   .print-meta { display: flex; flex-wrap: wrap; gap: 4mm 8mm; margin-top: 4mm; color: var(--muted); font-size: 9pt; }
   .print-meta span + span::before { content: "·"; margin-right: 8mm; }
-  .print-footer { position: fixed; right: 0; bottom: -11mm; left: 0; display: flex; justify-content: space-between; padding-top: 2mm; border-top: .3mm solid #c9cecb; color: #59615d; font-size: 8pt; }
-  .page-number::after { content: counter(page); }
+  .print-footer { display: none !important; }
   .workspace, .aoi-panel, .results, .perception-panel, .report-panel { break-inside: avoid; margin: 0 0 8mm; box-shadow: none; }
   .comparison-panel { break-inside: auto; margin: 0 0 8mm; padding: 0; border: 0; box-shadow: none; }
   .workspace-heading { margin-bottom: 3mm; }
@@ -317,11 +316,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .perception-scale { grid-template-columns: 22mm 1fr 22mm 30mm; padding: 3mm 4mm; }
   .perception-reading { gap: 3mm; }
   .metrics { margin-bottom: 5mm; }
-  .report-panel { break-before: page; }
+  .report-panel { break-before: page; break-inside: auto; }
+  .report-heading, .report-metadata, .executive-summary { break-inside: avoid; }
   .executive-summary { break-inside: avoid; margin-top: 5mm; }
   .report-metadata input, .report-questions textarea { border-color: #aaa; background: #fff; appearance: none; }
   .report-metadata input[type="date"]::-webkit-calendar-picker-indicator { display: none; }
   .report-questions { grid-template-columns: 1fr; }
-  .report-questions label { break-inside: avoid; }
+  .report-questions label { break-inside: avoid; margin-bottom: 5mm; }
+  .eyebrow, h2, h3 { break-after: avoid; }
   .report-questions textarea { min-height: 18mm; overflow: hidden; resize: none; }
 }
