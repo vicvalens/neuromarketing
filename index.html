@@ -3,19 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="An educational cursor-guided visual exploration tool." />
+    <meta name="description" content="An educational automatic saliency and cursor-guided visual exploration tool." />
     <title>Neurodesign Lite</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <header class="site-header">
       <div>
-        <p class="eyebrow">NEURODESIGN LITE · V1</p>
-        <h1>Cursor-guided visual exploration</h1>
+        <p class="eyebrow">NEURODESIGN LITE · V2.9.1</p>
+        <h1>Visual attention exploration</h1>
         <p class="intro">
-          Use the cursor to point at the areas that attract your attention. The tool
-          records dwell time and movement to build an attention heatmap.
+          Predict visual saliency automatically or record a participant's
+          cursor-guided exploration to study hierarchy, focus and viewing paths.
         </p>
+        <div class="print-meta">
+          <span id="printProject">Untitled project</span>
+          <span id="printStudent">Student</span>
+          <span id="printDate">Date</span>
+        </div>
       </div>
       <span class="method-label">Educational simulation · Not eye tracking</span>
     </header>
@@ -23,8 +28,8 @@
     <main>
       <section class="setup-panel" aria-labelledby="setup-title">
         <div>
-          <h2 id="setup-title">1. Prepare the test</h2>
-          <p>Upload a render and choose the exploration time.</p>
+          <h2 id="setup-title">1. Prepare the analysis</h2>
+          <p>Upload a render and choose an analysis method.</p>
         </div>
 
         <label class="file-picker">
@@ -33,6 +38,14 @@
         </label>
 
         <label class="field">
+          <span>Method</span>
+          <select id="methodSelect">
+            <option value="automatic" selected>Automatic saliency</option>
+            <option value="cursor">Participant cursor test</option>
+          </select>
+        </label>
+
+        <label id="durationField" class="field" hidden>
           <span>Duration</span>
           <select id="durationSelect">
             <option value="10">10 seconds</option>
@@ -42,16 +55,16 @@
           </select>
         </label>
 
-        <button id="startBtn" class="primary" disabled>Start test</button>
+        <button id="startBtn" class="primary" disabled>Analyze automatically</button>
       </section>
 
       <section class="workspace" aria-labelledby="workspace-title">
         <div class="workspace-heading">
           <div>
-            <h2 id="workspace-title">2. Explore the image</h2>
+            <h2 id="workspace-title">2. Analyze the image</h2>
             <p id="statusText" role="status">Upload an image to begin.</p>
           </div>
-          <div class="timer" aria-label="Remaining time">
+          <div class="timer" aria-label="Remaining time" hidden>
             <span id="timerValue">00:20</span>
           </div>
         </div>
@@ -59,10 +72,11 @@
         <div id="stage" class="stage" tabindex="0" aria-label="Visual exploration area">
           <div id="emptyState" class="empty-state">
             <span>PNG · JPG · WEBP</span>
-          <strong>Your render will appear here</strong>
+            <strong>Your render will appear here</strong>
           </div>
           <img id="stimulus" alt="Render used as a visual stimulus" hidden />
           <canvas id="resultCanvas" hidden></canvas>
+          <canvas id="aoiCanvas" hidden aria-label="Areas of interest overlay"></canvas>
           <div id="cursorIndicator" aria-hidden="true"></div>
           <div id="recordingBadge" class="recording-badge" hidden>
             <span></span> Recording
@@ -79,7 +93,7 @@
       <section class="analysis-panel" aria-labelledby="analysis-title">
         <div>
           <h2 id="analysis-title">3. Adjust and download</h2>
-          <p>Results are generated when the session ends.</p>
+          <p>Adjust the visualization after the analysis is complete.</p>
         </div>
 
         <label class="range-field">
@@ -93,7 +107,7 @@
         </label>
 
         <div class="button-group">
-          <button id="stopBtn" disabled>End session</button>
+          <button id="stopBtn" disabled>End cursor session</button>
           <button id="clearBtn" disabled>Reset</button>
           <button id="downloadPngBtn" disabled>Download PNG</button>
           <button id="downloadJsonBtn" disabled>Download JSON</button>
@@ -103,6 +117,104 @@
           <span>Import session JSON</span>
           <input id="jsonInput" type="file" accept="application/json,.json" />
         </label>
+      </section>
+
+      <section class="aoi-panel" aria-labelledby="aoi-title">
+        <div>
+          <p class="eyebrow">AREAS OF INTEREST</p>
+          <h2 id="aoi-title">Measure what matters</h2>
+          <p>After an analysis, draw regions over the elements that should receive attention.</p>
+        </div>
+
+        <label class="field">
+          <span>Area type</span>
+          <select id="aoiTypeSelect">
+            <option value="" selected disabled>Choose area type</option>
+            <option value="Product">Product</option>
+            <option value="Brand">Brand</option>
+            <option value="Message">Message</option>
+            <option value="Call to Action">Call to Action</option>
+            <option value="Distractor">Distractor</option>
+          </select>
+        </label>
+
+        <div class="aoi-actions">
+          <button id="drawAoiBtn" disabled>Draw area</button>
+          <button id="clearAoiBtn" disabled>Clear areas</button>
+        </div>
+
+        <div class="aoi-help">
+          <strong id="aoiStatus">Run an analysis first.</strong>
+          <span>Select an area type, then drag a rectangle over the relevant element.</span>
+        </div>
+
+        <div id="aoiValidation" class="aoi-validation" data-level="neutral">
+          <div><span>Area confidence</span><strong id="aoiConfidence">Not evaluated</strong></div>
+          <ul id="aoiValidationList"><li>Define Product and Distractor to validate the study.</li></ul>
+        </div>
+
+        <div class="aoi-table-wrap">
+          <table class="aoi-table">
+            <thead><tr><th>Area</th><th>Image coverage</th><th>Estimated attention</th><th></th></tr></thead>
+            <tbody id="aoiTableBody">
+              <tr class="empty-row"><td colspan="4">No areas defined</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="comparison-panel" aria-labelledby="comparison-title">
+        <div class="comparison-heading">
+          <div>
+            <p class="eyebrow">BEFORE / AFTER</p>
+            <h2 id="comparison-title">Compare a design improvement</h2>
+          <p>Mark Product and Distractor, save the baseline, then repeat with a revised render.</p>
+          </div>
+          <button id="saveBaselineBtn" disabled>Save current as baseline</button>
+        </div>
+
+        <p id="comparisonStatus" class="comparison-status">Run an automatic analysis and mark Product and Distractor.</p>
+
+        <div id="comparisonResults" class="comparison-results" hidden>
+          <figure>
+            <canvas id="baselineCanvas"></canvas>
+            <figcaption><span>Before</span><strong id="baselineName">Baseline</strong></figcaption>
+          </figure>
+          <figure>
+            <canvas id="candidateCanvas"></canvas>
+            <figcaption><span>After</span><strong id="candidateName">Current design</strong></figcaption>
+          </figure>
+          <div class="comparison-metrics">
+            <div><span>Focus concentration</span><strong id="focusComparison">—</strong></div>
+            <div><span>Visual competition</span><strong id="competitionComparison">—</strong></div>
+            <div><span>Primary hotspot</span><strong id="hotspotComparison">—</strong></div>
+            <div><span>Image similarity</span><strong id="similarityComparison">—</strong></div>
+          </div>
+          <figure class="difference-figure">
+            <canvas id="differenceCanvas"></canvas>
+            <figcaption>
+              <span>Attention difference</span>
+              <strong><i class="loss-key"></i>Less attention <i class="gain-key"></i>More attention</strong>
+            </figcaption>
+          </figure>
+          <div id="winnerPanel" class="winner-panel" hidden>
+            <div>
+              <span>Evaluation goal</span>
+              <strong>Product emphasis</strong>
+              <span class="confidence-label">Area confidence</span>
+              <strong id="winnerConfidence">—</strong>
+            </div>
+            <div class="score-pair">
+              <div><span>Before score</span><strong id="beforeScore">—</strong></div>
+              <div><span>After score</span><strong id="afterScore">—</strong></div>
+            </div>
+            <div class="winner-result">
+              <span>Recommended render</span>
+              <strong id="winnerName">—</strong>
+              <p id="winnerReason"></p>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="results" aria-labelledby="results-title">
@@ -122,16 +234,101 @@
           <div><span>Fixations</span><strong id="fixationMetric">0</strong></div>
           <div><span>Time</span><strong id="timeMetric">0.0 s</strong></div>
         </div>
+        <div id="automaticSummary" class="automatic-summary" hidden>
+          <div><span>Focus concentration</span><strong id="focusMetric">—</strong></div>
+          <div><span>Visual competition</span><strong id="competitionMetric">—</strong></div>
+          <div><span>Primary hotspot</span><strong id="hotspotMetric">—</strong></div>
+        </div>
+      </section>
+
+      <section id="perceptionPanel" class="perception-panel" aria-labelledby="perception-title" hidden>
+        <div class="perception-heading">
+          <div>
+            <p class="eyebrow">EMOTIONAL AND PERCEPTUAL ANALYSIS</p>
+            <h2 id="perception-title">How the image may be perceived</h2>
+            <p>Exploratory estimates derived from color, luminance, contrast and visual complexity.</p>
+          </div>
+          <span class="confidence-badge">Exploratory confidence</span>
+        </div>
+        <div class="perception-scales">
+          <div class="perception-scale"><span>Calm</span><i><b id="energyMarker"></b></i><span>Energetic</span><strong id="energyValue">—</strong></div>
+          <div class="perception-scale"><span>Warm</span><i><b id="temperatureMarker"></b></i><span>Cool</span><strong id="temperatureValue">—</strong></div>
+          <div class="perception-scale"><span>Soft</span><i><b id="boldnessMarker"></b></i><span>Bold</span><strong id="boldnessValue">—</strong></div>
+          <div class="perception-scale"><span>Simple</span><i><b id="complexityMarker"></b></i><span>Complex</span><strong id="complexityValue">—</strong></div>
+          <div class="perception-scale"><span>Subtle</span><i><b id="vividnessMarker"></b></i><span>Vivid</span><strong id="vividnessValue">—</strong></div>
+        </div>
+        <div class="perception-reading">
+          <div><span>Perceptual reading</span><strong id="perceptionReading">—</strong></div>
+          <div><span>Visual evidence</span><p id="perceptionEvidence">—</p></div>
+        </div>
+        <p class="perception-note">This is not a measurement of a viewer's emotion. Validate the interpretation with participant ratings or interviews.</p>
+      </section>
+
+      <section class="report-panel" aria-labelledby="report-title">
+        <div class="report-heading">
+          <div>
+            <p class="eyebrow">FINAL STUDY REPORT</p>
+            <h2 id="report-title">Turn the analysis into a conclusion</h2>
+            <p>Complete the fields, then print the study or save it as a PDF.</p>
+          </div>
+          <button id="printReportBtn" class="primary">Print / Save as PDF</button>
+        </div>
+
+        <div class="report-metadata">
+          <label><span>Project name</span><input id="projectNameInput" type="text" placeholder="Product render evaluation" /></label>
+          <label><span>Student name</span><input id="studentNameInput" type="text" placeholder="Name" /></label>
+          <label><span>Date</span><input id="studyDateInput" type="date" /></label>
+        </div>
+
+        <section class="executive-summary" aria-labelledby="executive-summary-title">
+          <div>
+            <span class="summary-label">Automatic conclusion</span>
+            <h3 id="executive-summary-title">Study summary</h3>
+            <p id="studyConclusion">Run an analysis to generate a concise conclusion.</p>
+          </div>
+          <div>
+            <span class="summary-label">Proposed design improvements</span>
+            <ul id="designRecommendations">
+              <li>Recommendations will appear after the image is analyzed.</li>
+            </ul>
+          </div>
+        </section>
+
+        <div class="report-questions">
+          <label>
+            <span>Does it work?</span>
+            <small>Explain whether attention reaches the intended product or element.</small>
+            <textarea id="worksAnswer" rows="5" placeholder="The render works / partially works because…"></textarea>
+          </label>
+          <label>
+            <span>Does it communicate?</span>
+            <small>Explain whether the hierarchy and intended message are clear.</small>
+            <textarea id="communicatesAnswer" rows="5" placeholder="The design communicates…"></textarea>
+          </label>
+          <label>
+            <span>How is it perceived?</span>
+            <small>Describe the emotional and perceptual qualities of the design.</small>
+            <textarea id="perceivedAnswer" rows="5" placeholder="The render is perceived as…"></textarea>
+          </label>
+        </div>
       </section>
 
       <aside class="disclaimer">
         <strong>Methodological note</strong>
         <p>
-          This map represents attention voluntarily indicated with the cursor.
-          It does not record eye movements or replace an eye-tracking study.
+          Automatic mode estimates bottom-up visual saliency from image features.
+          Cursor mode records voluntarily indicated attention. Neither mode records
+          eye movements or replaces an eye-tracking study.
         </p>
       </aside>
+
+      <footer class="site-credit">By Victor Valencia · Neurodesign 2026</footer>
     </main>
+
+    <div class="print-footer" aria-hidden="true">
+      <span>By Victor Valencia · Neurodesign 2026</span>
+      <span class="page-number">Page </span>
+    </div>
 
     <script src="app.js"></script>
   </body>
